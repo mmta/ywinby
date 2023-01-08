@@ -23,20 +23,21 @@ pub trait DB: Send + Sync {
 
 #[derive(clap::ValueEnum, Clone, PartialEq, Copy, Debug)]
 pub enum StorageType {
-  FIRESTORE,
-  JSON,
+  Firestore,
+  Json,
 }
 
 pub struct DBBuilder {}
 
 impl DBBuilder {
+  #[allow(clippy::new_ret_no_self)]
   pub async fn new(storage_type: StorageType, id: &str) -> DBResult<Box<dyn DB>> {
-    if storage_type == StorageType::JSON {
+    if storage_type == StorageType::Json {
       let j = jfs_store::Storage::new(id)?;
-      return Ok(Box::new(j));
+      Ok(Box::new(j))
     } else {
       let f = firestore::Storage::new(id).await?;
-      return Ok(Box::new(f));
+      Ok(Box::new(f))
     }
   }
 }

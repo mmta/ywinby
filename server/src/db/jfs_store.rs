@@ -22,9 +22,7 @@ pub struct Storage {
 
 impl Storage {
   pub fn new(id: &str) -> DBResult<Storage> {
-    let mut cfg = jfs::Config::default();
-    cfg.pretty = true;
-    cfg.single = true;
+    let cfg = jfs::Config { pretty: true, single: true, ..Default::default() };
     let db_path = Path::new(id);
     create_dir_all(db_path)?;
     let u = Store::new_with_cfg(db_path.join("users").as_path(), cfg)?;
@@ -152,7 +150,7 @@ impl DB for Storage {
         email == message.owner
       };
       if should_delete {
-        self.message_store.delete(&message_id.as_str())?;
+        self.message_store.delete(message_id.as_str())?;
         return Ok(());
       }
     }

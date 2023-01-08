@@ -38,20 +38,20 @@ use isahc::prelude::*;
 
 async fn get_google_pubkeys() -> Result<String> {
   let res = isahc::get_async("https://www.googleapis.com/oauth2/v3/certs").await?.text().await?;
-  Ok(res.to_string())
+  Ok(res)
 }
 
 pub async fn get_email_from_token(token: &str, client_id: &str) -> Result<String> {
   let keys = get_google_pubkeys().await?;
   let google_certs: GoogleCerts = serde_json::from_str(keys.as_str())?;
 
-  let header = decode_header(&token)?;
+  let header = decode_header(token)?;
   let jwk: JsonWebKey;
   if let Some(v) = header.kid {
     jwk = google_certs.keys
       .into_iter()
       .find(|x| x.kid == v)
-      .ok_or(anyhow::format_err!("cannot find matching JWK for {}", v))?;
+      .ok_or_else(|| anyhow::format_err!("cannot find matching JWK for {}", v))?;
   } else {
     return Err(anyhow::Error::msg("invalid google JWK key format"));
   }
@@ -59,7 +59,7 @@ pub async fn get_email_from_token(token: &str, client_id: &str) -> Result<String
   let key = &DecodingKey::from_rsa_components(jwk.n.as_str(), jwk.e.as_str())?;
 
   // expired tokens, etc are handled here
-  let token_data = decode::<Claims>(&token, &key, &Validation::new(Algorithm::RS256)).map_err(|e|
+  let token_data = decode::<Claims>(token, key, &Validation::new(Algorithm::RS256)).map_err(|e|
     anyhow::format_err!("cannot decode JWT token: {}", e)
   )?;
 

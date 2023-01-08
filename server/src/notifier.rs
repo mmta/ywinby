@@ -3,7 +3,7 @@ use crossbeam::{ channel::{ Receiver, tick }, select };
 use serde::Serialize;
 use web_push::*;
 use log::{ info, error };
-use std::{ collections::HashSet, time::Duration };
+use std::{ collections::HashSet, time::Duration, ops::Deref };
 
 use crate::{ data_struct::{ User, SecretMessage, Subscription }, db::DB };
 
@@ -29,13 +29,13 @@ pub async fn start_scheduler(
   loop {
     select! {
       recv(ticker) -> _ => {
-        let _res = execute_tasks(&db, &web_pusher).await
+        execute_tasks(db.deref(), &web_pusher).await
           .map_err(|e| error!("error executing task: {}", e))
           .unwrap_or_default();
       },
       // spawn() doesnt work with select!'ing quit channel, so here's a workaround
       default(Duration::from_secs(SCHEDULER_CHECK_EXIT_EVERY_SECONDS)) => {
-        if let Ok(_) = quit.try_recv() {
+        if quit.try_recv().is_ok() {
           break
         }
       }
@@ -43,7 +43,7 @@ pub async fn start_scheduler(
   }
 }
 
-pub async fn execute_tasks(db: &Box<dyn DB>, pusher: &WebPusher) -> Result<()> {
+pub async fn execute_tasks(db: &dyn DB, pusher: &WebPusher) -> Result<()> {
   info!("start executing scheduled task");
 
   let messages = db.get_all_messages()?;
