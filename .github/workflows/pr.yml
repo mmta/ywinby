@@ -5,7 +5,7 @@ on:
       - master
 jobs:
   check-versions:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: |
       ! contains(github.event.head_commit.message, '[skip ci]')
     steps:
@@ -22,10 +22,9 @@ jobs:
           node exec_versions.js
   test-build:
     needs: check-versions
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v3
       - name: build-docker
-        # may need to install jq here
         run: |
           ./scripts/dockerbuild.sh
