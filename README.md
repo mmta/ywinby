@@ -1,6 +1,5 @@
 # Ywinby
 
-
 Ywinby is a simple secret recovery/inheritance system based on Shamir's Secret Sharing.
 
 It uses a 2 out 3 scheme whereby a secret owner splits a secret into 3 parts and holds the 1st share, gives the 2nd share to the would-be recipient, and the last share to Ywinby server. The server will then periodically ping the owner, and will release its share to the recipient if the owner fails to respond after a certain time threshold decided by the owner.
