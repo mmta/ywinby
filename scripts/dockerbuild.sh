@@ -26,5 +26,6 @@ docker build -f Dockerfile -t $base/$name:$version -t $base/$name:latest .
 
 if [ "$1" = "push" ]; then
   echo pushing
-  docker push $base/$name:$version -t $base/$name:latest
+  docker push $base/$name:$version
+  docker push $base/$name:latest
 fi
