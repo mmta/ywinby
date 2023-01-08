@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 jobs:
   check-versions:
-    runs-on: "self-hosted"
+    runs-on: self-hosted
     if: |
       ! contains(github.event.head_commit.message, '[skip ci]')
     outputs:
@@ -39,14 +39,13 @@ jobs:
   publish-new-version:
     needs: check-versions
     if: needs.check-versions.outputs.should_release == 'true'
-    runs-on: Linux
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v3
       - name: setup node
         uses: actions/setup-node@v3
         with:
           node-version: 16
-          cache: "npm"
       - name: "Create release"
         uses: "actions/github-script@v5"
         env:
