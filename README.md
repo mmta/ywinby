@@ -1,4 +1,5 @@
 # Ywinby
+[![CI](https://github.com/mmta/ywinby/actions/workflows/publish.yaml/badge.svg)](https://github.com/mmta/ywinby/actions/workflows/publish.yaml)
 
 Ywinby is a simple secret recovery/inheritance system based on Shamir's Secret Sharing.
 
