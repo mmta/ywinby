@@ -49,7 +49,7 @@ jobs:
       - name: "Create release"
         uses: "actions/github-script@v5"
         env:
-          RELEASE_TAG: v-${{ needs.check-versions.outputs.current_version }}
+          RELEASE_TAG: v${{ needs.check-versions.outputs.current_version }}
         with:
           github-token: "${{ github.token }}"
           script: |
