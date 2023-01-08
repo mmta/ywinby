@@ -1,0 +1,17 @@
+name: Ywinby-Checks
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 1 * * *"
+jobs:
+  ywinby-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: curl
+        run: |
+          # this returns non-zero if the result isn't HTTP 200
+          # set CLOUD_RUN_URL secret to https://your-auto-generated-url.run.app,
+          # and SERVERLESS_TOKEN secret to the same string as the SERVERLESS_TOKEN env var set in ywinby container
+          curl -sSf -H 'content-type: application/json' ${{ secrets.CLOUD_RUN_URL }}/serverless-task -d '{ "token" : ${{ secrets.SERVERLESS_TOKEN }} }'
