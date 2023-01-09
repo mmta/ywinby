@@ -68,7 +68,7 @@ async fn serverless_scheduled_task(
   if access_token.token != data.serverless_token {
     return Err(ErrorUnauthorized("correct access token required\n"));
   }
-
+  let _g = data.unsafe_db.mu.try_lock().http_internal_error("task is still executing\n")?;
   notifier
     ::execute_tasks(&data.unsafe_db, &data.web_push).await
     .http_internal_error("error executing scheduled task")?;

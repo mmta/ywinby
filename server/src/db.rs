@@ -45,6 +45,7 @@ impl DBBuilder {
 
 pub struct Unsafe {
   pub content: Box<dyn DB>,
+  pub mu: tokio::sync::Mutex<()>,
 }
 unsafe impl Send for Unsafe {}
 unsafe impl Sync for Unsafe {}
@@ -52,6 +53,6 @@ unsafe impl Sync for Unsafe {}
 impl Unsafe {
   pub async fn new(storage_type: StorageType, id: String) -> DBResult<Self> {
     let dbo = DBBuilder::new(storage_type, &id).await?;
-    Ok(Self { content: dbo })
+    Ok(Self { content: dbo, mu: tokio::sync::Mutex::new(()) })
   }
 }
