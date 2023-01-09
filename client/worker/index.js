@@ -3,7 +3,6 @@
 self.addEventListener('waiting', () => {
   self.workbox.messageSkipWaiting()
   self.workbox.core.clientsClaim()
-
 })
 
 self.addEventListener("activate", (event) => {
@@ -11,7 +10,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener('controlling', () => {
-  window.location.reload()
+  location.reload()
 })
 
 self.addEventListener('push', function (event) {
