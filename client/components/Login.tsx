@@ -24,6 +24,7 @@ const Login: FC<{}> = () => {
       setLoginLoading(false)
     }
     f()
+    return () => setLoginLoading(false)
   }, [loginLoading, showLoginPrompt])
 
   return (

@@ -5,7 +5,9 @@
  **/
 
 const withPWA = require('next-pwa')({
-  dest: 'public'
+  dest: 'public',
+  register: true,
+  publicExcludes: ['!runtime-config.json'],
 })
 
 // @ts-ignore

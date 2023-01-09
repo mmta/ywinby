@@ -10,13 +10,11 @@ This means:
 - The owner can cancel the message at anytime by deleting the server's secret share.
 - The server never knows the actual secret message.
 
-## Screenshot
-
-![screenshot](docs/screenshot.png)
-
 ## Demo
 
-See [Quick Start](docs/quick-start.md) for a guide on how to setup and run a demo.
+See [Quick Start](docs/quick-start.md) for a guide on how to setup and run a demo. Here's an example of how it looks 
+
+![screenshot](docs/screenshot.png).
 
 ## How it works
 

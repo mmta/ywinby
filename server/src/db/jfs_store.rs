@@ -10,6 +10,7 @@ use anyhow::anyhow;
 use jfs::Store;
 use log::info;
 
+use super::StorageType;
 use super::{ DB, DBResult };
 use crate::data_struct::MessageWithLastSeen;
 use crate::data_struct::Subscription;
@@ -18,22 +19,24 @@ use crate::data_struct::Subscription;
 pub struct Storage {
   user_store: Store,
   message_store: Store,
+  directory_name: String,
 }
 
 impl Storage {
   pub fn new(id: &str) -> DBResult<Storage> {
-    let mut cfg = jfs::Config::default();
-    cfg.pretty = true;
-    cfg.single = true;
+    let cfg = jfs::Config { pretty: true, single: true, ..Default::default() };
     let db_path = Path::new(id);
     create_dir_all(db_path)?;
     let u = Store::new_with_cfg(db_path.join("users").as_path(), cfg)?;
     let m = Store::new_with_cfg(db_path.join("messages").as_path(), cfg)?;
-    Ok(Storage { user_store: u, message_store: m })
+    Ok(Storage { user_store: u, message_store: m, directory_name: id.to_string() })
   }
 }
 
 impl DB for Storage {
+  fn get_storage(&self) -> DBResult<(StorageType, String)> {
+    Ok((StorageType::Json, self.directory_name.to_string()))
+  }
   fn put_user(&self, user: User) -> DBResult<()> {
     let id = self.user_store.save_with_id(&user, &user.id)?;
     info!("user upserted, Id: {}", id);
@@ -152,7 +155,7 @@ impl DB for Storage {
         email == message.owner
       };
       if should_delete {
-        self.message_store.delete(&message_id.as_str())?;
+        self.message_store.delete(message_id.as_str())?;
         return Ok(());
       }
     }

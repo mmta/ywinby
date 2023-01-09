@@ -8,6 +8,7 @@ use crossbeam::channel;
 use log::info;
 use uuid::Uuid;
 
+use super::StorageType;
 use super::{ DB, DBResult };
 use crate::data_struct::MessageWithLastSeen;
 use crate::data_struct::Subscription;
@@ -21,6 +22,7 @@ pub struct Storage {
   user_coll: String,
   message_coll: String,
   rt: tokio::runtime::Runtime,
+  project_id: String,
 }
 
 impl Storage {
@@ -31,11 +33,15 @@ impl Storage {
       user_coll: "users".to_string(),
       message_coll: "messages".to_string(),
       rt: tokio::runtime::Runtime::new().unwrap(),
+      project_id: project_id.to_string(),
     })
   }
 }
 
 impl DB for Storage {
+  fn get_storage(&self) -> DBResult<(StorageType, String)> {
+    Ok((StorageType::Firestore, self.project_id.to_string()))
+  }
   fn put_user(&self, user: User) -> DBResult<()> {
     let (tx, rx) = channel::bounded(1);
     let db = self.db.clone();
@@ -82,7 +88,7 @@ impl DB for Storage {
       _ = tx.send(v);
     });
     let m = rx.recv()??;
-    m.ok_or(format_err!("cannot find user"))
+    m.ok_or_else(|| format_err!("cannot find user"))
   }
   fn put_message(&self, mut message: SecretMessage) -> DBResult<()> {
     if message.owner.is_empty() {
@@ -107,7 +113,7 @@ impl DB for Storage {
 
     let (tx, rx) = channel::bounded(1);
     let db = self.db.clone();
-    let mut m = message.clone();
+    let mut m = message;
     m.id = id.to_owned();
     let coll = self.message_coll.clone();
 
@@ -122,7 +128,7 @@ impl DB for Storage {
       _ = tx.send(res);
     });
     _ = rx.recv()??;
-    info!("message upserted, Id: {}", m_idb.clone());
+    info!("message upserted, Id: {}", m_idb);
     Ok(())
   }
   fn update_message_notified_on(&self, id: &str, email: &str) -> DBResult<()> {
@@ -192,7 +198,7 @@ impl DB for Storage {
       _ = tx.send(res);
     });
     let m = rx.recv()??;
-    m.ok_or(format_err!("cannot find message"))
+    m.ok_or_else(|| format_err!("cannot find message"))
   }
   fn get_messages_for_email(&self, email: String) -> DBResult<Vec<MessageWithLastSeen>> {
     let messages: BTreeMap<String, SecretMessage> = self
@@ -255,7 +261,7 @@ impl DB for Storage {
           let res = db.fluent().delete().from(&coll).document_id(&message_id).execute().await;
           _ = tx.send(res);
         });
-        _ = rx.recv()??;
+        rx.recv()??;
         return Ok(());
       }
     }

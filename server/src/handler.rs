@@ -16,11 +16,12 @@ use actix_web::{
 };
 use http_error::IntoHttpError;
 
-use crate::{ notifier::{ self, AppPushMessage }, data_struct::{ SecretMessage, User } };
+use crate::{ notifier::{ self, AppPushMessage }, data_struct::{ SecretMessage, User }, db::Unsafe };
 use crate::data_struct::{ Subscription };
 
 pub struct AppState {
   pub db: Box<dyn crate::db::DB>,
+  pub unsafe_db: Unsafe,
   pub web_push: notifier::WebPusher,
   pub block_registration: bool,
   pub scheduled_task_period: u64,
@@ -67,8 +68,9 @@ async fn serverless_scheduled_task(
   if access_token.token != data.serverless_token {
     return Err(ErrorUnauthorized("correct access token required\n"));
   }
+  let _g = data.unsafe_db.mu.try_lock().http_internal_error("task is still executing\n")?;
   notifier
-    ::execute_tasks(&data.db, &data.web_push).await
+    ::execute_tasks(&data.unsafe_db, &data.web_push).await
     .http_internal_error("error executing scheduled task")?;
   Ok("task executed successfully\n")
 }
@@ -114,7 +116,7 @@ async fn test_notification(
   notif_request: web::Json<TestNotificationRequest>
 ) -> Result<impl Responder> {
   let email = authenticate_user(notif_request.token.as_str(), &data).await?;
-  let recipient_email = if notif_request.recipient != "" {
+  let recipient_email = if !notif_request.recipient.is_empty() {
     notif_request.recipient.as_str()
   } else {
     email.as_str()
@@ -201,7 +203,7 @@ async fn message_create(
     data.scheduled_task_period / 60,
     m.verify_every_minutes
   );
-  if u64::from(data.scheduled_task_period) > m.verify_every_minutes * 60 {
+  if data.scheduled_task_period > m.verify_every_minutes * 60 {
     return Err(
       ErrorForbidden(
         format!(
@@ -217,7 +219,7 @@ async fn message_create(
   if recipient.id == email {
     return Err(ErrorForbidden("owner and recipient must be different"));
   }
-  if recipient.subscription.keys.auth == "" {
+  if recipient.subscription.keys.auth.is_empty() {
     return Err(ErrorForbidden("recipient hasn't subscribe to push notification"));
   }
   m.owner = email.to_owned();

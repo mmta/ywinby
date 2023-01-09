@@ -37,4 +37,5 @@ docker/ctx
 server/static
 server/.env
 server/report*
+server/service-account.json
 yarn.lock

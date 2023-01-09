@@ -11,7 +11,7 @@ use actix_cors::Cors;
 use actix_files as fs;
 
 use crossbeam::channel::bounded;
-use db::StorageType;
+use db::{ StorageType, Unsafe };
 use handler::AppState;
 use log::{ info, error };
 use serde::Serialize;
@@ -104,9 +104,9 @@ fn update_client_config(api_path: String, pubkey: String) -> Result<(), std::io:
 fn generate_keys() -> std::io::Result<()> {
   let k = vapid::Key
     ::generate()
-    .map_err(|e| {
-      error!("exiting, cannot generate key: {:?}", e);
-      return e;
+    .map_err(|err| {
+      error!("exiting, cannot generate key: {:?}", err);
+      err
     })
     .unwrap();
   println!(
@@ -117,7 +117,7 @@ fn generate_keys() -> std::io::Result<()> {
     k.to_private_raw(),
     k.to_public_raw()
   );
-  return Ok(());
+  Ok(())
 }
 
 #[derive(Serialize)]
@@ -143,25 +143,25 @@ async fn main() -> std::io::Result<()> {
     .level(log_severity)
     .destination(Destination::Stderr)
     .build()
-    .map_err(|e| {
-      error!("exiting, cannot configure logger: {:?}", e);
-      return e;
+    .map_err(|err| {
+      error!("exiting, cannot configure logger: {:?}", err);
+      err
     })
     .unwrap();
   let _guard = sloggers
     ::set_stdlog_logger(logger)
-    .map_err(|e| {
-      error!("exiting, cannot set standard logger: {:?}", e);
-      return e;
+    .map_err(|err| {
+      error!("exiting, cannot set standard logger: {:?}", err);
+      err
     })
     .unwrap();
 
-  update_client_config(args.base_api_path, args.push_pubkey).map_err(|e| {
-    error!("exiting, cannot update client config: {:?}", e);
-    return e;
+  update_client_config(args.base_api_path, args.push_pubkey).map_err(|err| {
+    error!("exiting, cannot update client config: {:?}", err);
+    err
   })?;
 
-  let storage_id = if args.storage == StorageType::FIRESTORE {
+  let storage_id = if args.storage == StorageType::Firestore {
     args.project_id
   } else {
     "db".to_string()
@@ -186,16 +186,17 @@ async fn main() -> std::io::Result<()> {
       error!("{}", msg);
       return Err(Error::new(ErrorKind::InvalidInput, msg));
     }
-    let db = db::DBBuilder::new(args.storage, &storage_id).await.unwrap();
+    let dbox = db::Unsafe::new(args.storage, storage_id.to_string()).await.unwrap();
+    println!("abt to spawn!");
     tokio::spawn(async move {
-      notifier::start_scheduler(db, args.scheduled_task_period, rx, args.push_privkey).await;
+      notifier::start_scheduler(dbox, args.scheduled_task_period, rx, args.push_privkey).await;
     });
   }
 
   use actix_web::{ App, HttpServer };
 
   HttpServer::new(|| {
-    return App::new()
+    App::new()
       .wrap(
         Cors::default()
           .allow_any_origin()
@@ -215,7 +216,7 @@ async fn main() -> std::io::Result<()> {
       .service(handler::unsubscribe_user)
       .service(handler::test_notification)
       .service(handler::serverless_scheduled_task)
-      .service(fs::Files::new("/", "./static").index_file("index.html"));
+      .service(fs::Files::new("/", "./static").index_file("index.html"))
   })
     .workers(1)
     .bind(("0.0.0.0", 8080))?
@@ -224,20 +225,22 @@ async fn main() -> std::io::Result<()> {
 
 async fn data_factory_creator() -> AppState {
   let args = Args::parse();
-  let s_id = if args.storage == StorageType::FIRESTORE {
+  let s_id = if args.storage == StorageType::Firestore {
     args.project_id
   } else {
     "db".to_string()
   };
   let web_pusher = notifier::WebPusher::new(args.push_privkey.as_str().to_string()).unwrap();
   let sdb = db::DBBuilder::new(args.storage, &s_id).await.unwrap();
-  let state = handler::AppState {
+  let dbox = Unsafe::new(args.storage, s_id).await.unwrap();
+
+  handler::AppState {
     db: sdb,
+    unsafe_db: dbox,
     web_push: web_pusher.to_owned(),
     block_registration: args.block_registration,
     scheduled_task_period: args.scheduled_task_period,
     oauth_client_id: args.client_id.to_owned(),
     serverless_token: args.serverless_token.to_owned(),
-  };
-  return state;
+  }
 }

@@ -18,13 +18,13 @@ Here ywinby runs in serverless mode, which disables the internal scheduler for p
    ```  
 1. Pull ywinby docker image from docker.io, and push it to your project's container registry.
     ```
-    docker pull mmta/ywinby:1.0.0
-    docker tag mmta/ywinby:1.0.0 gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:1.0.0
-    docker push gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:1.0.0
+    docker pull mmta/ywinby:latest
+    docker tag mmta/ywinby:latest gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:latest
+    docker push gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:latest
     ```
 1. Generate VAPID keys for web push notification, then copy and save both the `privateKey` and `publicKey` to an env. variable:
     ```shell
-    docker run --rm mmta/ywinby:1.0.0 ./ywinby --generate > /tmp/vapid.txt && \
+    docker run --rm mmta/ywinby:latest ./ywinby --generate > /tmp/vapid.txt && \
       export PUSH_PRIVKEY=$(cat /tmp/vapid.txt | grep privateKey | awk -F": " '{print $2}') && \
       export PUSH_PUBKEY=$(cat /tmp/vapid.txt | grep publicKey | awk -F": " '{print $2}')
     
@@ -35,7 +35,7 @@ Here ywinby runs in serverless mode, which disables the internal scheduler for p
 1. Deploy `ywinby` Cloud Run service that uses the previous container image. The result can also be observed from the [GCP console](https://console.cloud.google.com/run).
     ```shell
     gcloud run deploy ywinby \
-      --image=gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:1.0.0 \
+      --image=gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:latest \
       --cpu=1 \
       --max-instances=3 \
       --memory=512Mi \
@@ -83,7 +83,7 @@ Here ywinby runs in serverless mode, which disables the internal scheduler for p
 
     echo $VARS
 
-    gcloud run deploy ywinby --image=gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:1.0.0 --set-env-vars=$VARS
+    gcloud run deploy ywinby --image=gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:latest --set-env-vars=$VARS
   
     ```
 1. The web app should now be accessible from the Cloud Run URL. From here you can test the setup [using multiple accounts](quick-start.md#sign-in-two-user-accounts), substituting https://ywinby.web.app in that section with your own Cloud Run URL. 
@@ -107,13 +107,13 @@ Once you've verified that the setup is working as it should, you can ask would-b
 
 ```shell
 gcloud run deploy ywinby \
-  --image=gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:1.0.0 \
+  --image=gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:latest \
   --update-env-vars=BLOCK_REGISTRATION=yes
 ```
 And to allow registration again:
 ```shell
 gcloud run deploy ywinby \
-  --image=gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:1.0.0 \
+  --image=gcr.io/$GOOGLE_CLOUD_PROJECT/ywinby:latest \
   --remove-env-vars=BLOCK_REGISTRATION
 ```
 
