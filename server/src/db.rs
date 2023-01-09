@@ -7,7 +7,7 @@ use crate::data_struct::{ User, SecretMessage, MessageWithLastSeen, Subscription
 
 type DBResult<T> = anyhow::Result<T>;
 
-pub trait DB: Send + Sync {
+pub trait DB {
   fn put_user(&self, user: User) -> DBResult<()>;
   fn get_user(&self, id: &str) -> DBResult<User>;
   fn put_message(&self, message: SecretMessage) -> DBResult<()>;
@@ -19,6 +19,7 @@ pub trait DB: Send + Sync {
   fn get_all_messages(&self) -> DBResult<BTreeMap<String, SecretMessage>>;
   fn unsubscribe_user(&self, email: String) -> DBResult<()>;
   fn subscribe_user(&self, email: String, sub: Subscription) -> DBResult<()>;
+  fn get_storage(&self) -> DBResult<(StorageType, String)>;
 }
 
 #[derive(clap::ValueEnum, Clone, PartialEq, Copy, Debug)]
@@ -39,5 +40,18 @@ impl DBBuilder {
       let f = firestore::Storage::new(id).await?;
       Ok(Box::new(f))
     }
+  }
+}
+
+pub struct Unsafe {
+  pub content: Box<dyn DB>,
+}
+unsafe impl Send for Unsafe {}
+unsafe impl Sync for Unsafe {}
+
+impl Unsafe {
+  pub async fn new(storage_type: StorageType, id: String) -> DBResult<Self> {
+    let dbo = DBBuilder::new(storage_type, &id).await?;
+    Ok(Self { content: dbo })
   }
 }

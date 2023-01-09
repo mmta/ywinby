@@ -11,7 +11,7 @@ use actix_cors::Cors;
 use actix_files as fs;
 
 use crossbeam::channel::bounded;
-use db::StorageType;
+use db::{ StorageType, Unsafe };
 use handler::AppState;
 use log::{ info, error };
 use serde::Serialize;
@@ -186,9 +186,10 @@ async fn main() -> std::io::Result<()> {
       error!("{}", msg);
       return Err(Error::new(ErrorKind::InvalidInput, msg));
     }
-    let db = db::DBBuilder::new(args.storage, &storage_id).await.unwrap();
+    let dbox = db::Unsafe::new(args.storage, storage_id.to_string()).await.unwrap();
+    println!("abt to spawn!");
     tokio::spawn(async move {
-      notifier::start_scheduler(db, args.scheduled_task_period, rx, args.push_privkey).await;
+      notifier::start_scheduler(dbox, args.scheduled_task_period, rx, args.push_privkey).await;
     });
   }
 
@@ -231,9 +232,11 @@ async fn data_factory_creator() -> AppState {
   };
   let web_pusher = notifier::WebPusher::new(args.push_privkey.as_str().to_string()).unwrap();
   let sdb = db::DBBuilder::new(args.storage, &s_id).await.unwrap();
+  let dbox = Unsafe::new(args.storage, s_id).await.unwrap();
 
   handler::AppState {
     db: sdb,
+    unsafe_db: dbox,
     web_push: web_pusher.to_owned(),
     block_registration: args.block_registration,
     scheduled_task_period: args.scheduled_task_period,

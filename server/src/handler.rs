@@ -1,6 +1,6 @@
 use actix_http::Response;
 use serde::Deserialize;
-use std::{ time::{ SystemTime, UNIX_EPOCH }, ops::Deref };
+use std::time::{ SystemTime, UNIX_EPOCH };
 use log::{ info, debug };
 
 mod http_error;
@@ -16,11 +16,12 @@ use actix_web::{
 };
 use http_error::IntoHttpError;
 
-use crate::{ notifier::{ self, AppPushMessage }, data_struct::{ SecretMessage, User } };
+use crate::{ notifier::{ self, AppPushMessage }, data_struct::{ SecretMessage, User }, db::Unsafe };
 use crate::data_struct::{ Subscription };
 
 pub struct AppState {
   pub db: Box<dyn crate::db::DB>,
+  pub unsafe_db: Unsafe,
   pub web_push: notifier::WebPusher,
   pub block_registration: bool,
   pub scheduled_task_period: u64,
@@ -67,8 +68,9 @@ async fn serverless_scheduled_task(
   if access_token.token != data.serverless_token {
     return Err(ErrorUnauthorized("correct access token required\n"));
   }
+
   notifier
-    ::execute_tasks(data.db.deref(), &data.web_push).await
+    ::execute_tasks(&data.unsafe_db, &data.web_push).await
     .http_internal_error("error executing scheduled task")?;
   Ok("task executed successfully\n")
 }

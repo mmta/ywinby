@@ -10,6 +10,7 @@ use anyhow::anyhow;
 use jfs::Store;
 use log::info;
 
+use super::StorageType;
 use super::{ DB, DBResult };
 use crate::data_struct::MessageWithLastSeen;
 use crate::data_struct::Subscription;
@@ -18,6 +19,7 @@ use crate::data_struct::Subscription;
 pub struct Storage {
   user_store: Store,
   message_store: Store,
+  directory_name: String,
 }
 
 impl Storage {
@@ -27,11 +29,14 @@ impl Storage {
     create_dir_all(db_path)?;
     let u = Store::new_with_cfg(db_path.join("users").as_path(), cfg)?;
     let m = Store::new_with_cfg(db_path.join("messages").as_path(), cfg)?;
-    Ok(Storage { user_store: u, message_store: m })
+    Ok(Storage { user_store: u, message_store: m, directory_name: id.to_string() })
   }
 }
 
 impl DB for Storage {
+  fn get_storage(&self) -> DBResult<(StorageType, String)> {
+    Ok((StorageType::Json, self.directory_name.to_string()))
+  }
   fn put_user(&self, user: User) -> DBResult<()> {
     let id = self.user_store.save_with_id(&user, &user.id)?;
     info!("user upserted, Id: {}", id);

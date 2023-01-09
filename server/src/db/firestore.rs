@@ -8,6 +8,7 @@ use crossbeam::channel;
 use log::info;
 use uuid::Uuid;
 
+use super::StorageType;
 use super::{ DB, DBResult };
 use crate::data_struct::MessageWithLastSeen;
 use crate::data_struct::Subscription;
@@ -21,6 +22,7 @@ pub struct Storage {
   user_coll: String,
   message_coll: String,
   rt: tokio::runtime::Runtime,
+  project_id: String,
 }
 
 impl Storage {
@@ -31,11 +33,15 @@ impl Storage {
       user_coll: "users".to_string(),
       message_coll: "messages".to_string(),
       rt: tokio::runtime::Runtime::new().unwrap(),
+      project_id: project_id.to_string(),
     })
   }
 }
 
 impl DB for Storage {
+  fn get_storage(&self) -> DBResult<(StorageType, String)> {
+    Ok((StorageType::Firestore, self.project_id.to_string()))
+  }
   fn put_user(&self, user: User) -> DBResult<()> {
     let (tx, rx) = channel::bounded(1);
     let db = self.db.clone();
