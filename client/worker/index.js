@@ -1,8 +1,14 @@
 'use strict'
 
 self.addEventListener('waiting', () => {
-  window.workbox.messageSkipWaiting()
+  self.workbox.messageSkipWaiting()
+  self.workbox.core.clientsClaim()
+
 })
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(clients.claim());
+});
 
 self.addEventListener('controlling', () => {
   window.location.reload()
@@ -14,7 +20,7 @@ self.addEventListener('push', function (event) {
     registration.showNotification(data.title, {
       body: data.message,
       tag: data.tag,
-      icon: '/icons/icon-192x192.png'
+      icon: '/icons/192x192.png'
     })
   )
 })
