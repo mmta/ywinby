@@ -5,12 +5,10 @@ mod db;
 mod data_struct;
 
 use std::fs::create_dir_all;
-use std::io::{ Error, ErrorKind };
 
 use actix_cors::Cors;
 use actix_files as fs;
 
-use crossbeam::channel::bounded;
 use db::{ StorageType };
 use handler::AppState;
 use log::{ info, error };
@@ -167,29 +165,22 @@ async fn main() -> std::io::Result<()> {
     "db".to_string()
   };
 
-  let (tx, rx) = bounded(1);
   on_shutdown!(|| {
     _guard.cancel_reset();
-    _ = tx.send(true);
-    drop(tx);
     info!("server is shutting down")
   });
 
   if !args.serverless_token.is_empty() {
     info!("starting in serverless mode, not activating scheduler");
   } else {
-    if notifier::SCHEDULER_CHECK_EXIT_EVERY_SECONDS >= args.scheduled_task_period {
-      let msg = format!(
-        "scheduled task period must be > than {} seconds",
-        notifier::SCHEDULER_CHECK_EXIT_EVERY_SECONDS
-      );
-      error!("{}", msg);
-      return Err(Error::new(ErrorKind::InvalidInput, msg));
-    }
-    let sdb = db::DBBuilder::new(args.storage, &storage_id).await.unwrap();
     println!("abt to spawn!");
     tokio::spawn(async move {
-      notifier::start_scheduler(sdb, args.scheduled_task_period, rx, args.push_privkey).await;
+      notifier::start_scheduler(
+        args.storage,
+        &storage_id,
+        args.scheduled_task_period,
+        args.push_privkey
+      ).await;
     });
   }
 

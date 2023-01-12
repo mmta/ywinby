@@ -1,5 +1,5 @@
-use std::{ collections::BTreeMap, sync::{ Mutex, Arc } };
-
+use std::{ collections::BTreeMap, sync::{ Arc } };
+use tokio::sync::Mutex;
 pub mod jfs_store;
 pub mod firestore;
 
@@ -23,64 +23,64 @@ impl DB {
       DB::Json { storage } => &storage.mu,
     }
   }
-  pub fn put_user(&self, user: User) -> DBResult<()> {
+  pub async fn put_user(&self, user: User) -> DBResult<()> {
     match self {
-      DB::Firestore { storage } => storage.put_user(user),
-      DB::Json { storage } => storage.put_user(user),
+      DB::Firestore { storage } => storage.put_user(user).await,
+      DB::Json { storage } => storage.put_user(user).await,
     }
   }
-  pub fn get_user(&self, id: &str) -> DBResult<User> {
+  pub async fn get_user(&self, id: &str) -> DBResult<User> {
     match self {
-      DB::Firestore { storage } => storage.get_user(id),
-      DB::Json { storage } => storage.get_user(id),
+      DB::Firestore { storage } => storage.get_user(id).await,
+      DB::Json { storage } => storage.get_user(id).await,
     }
   }
-  pub fn put_message(&self, message: SecretMessage) -> DBResult<()> {
+  pub async fn put_message(&self, message: SecretMessage) -> DBResult<()> {
     match self {
-      DB::Firestore { storage } => storage.put_message(message),
-      DB::Json { storage } => storage.put_message(message),
+      DB::Firestore { storage } => storage.put_message(message).await,
+      DB::Json { storage } => storage.put_message(message).await,
     }
   }
-  pub fn update_message_notified_on(&self, id: &str, email: &str) -> DBResult<()> {
+  pub async fn update_message_notified_on(&self, id: &str, email: &str) -> DBResult<()> {
     match self {
-      DB::Firestore { storage } => storage.update_message_notified_on(id, email),
-      DB::Json { storage } => storage.update_message_notified_on(id, email),
+      DB::Firestore { storage } => storage.update_message_notified_on(id, email).await,
+      DB::Json { storage } => storage.update_message_notified_on(id, email).await,
     }
   }
-  pub fn set_message_revealed_if_needed(&self, id: &str) -> DBResult<bool> {
+  pub async fn set_message_revealed_if_needed(&self, id: &str) -> DBResult<bool> {
     match self {
-      DB::Firestore { storage } => storage.set_message_revealed_if_needed(id),
-      DB::Json { storage } => storage.set_message_revealed_if_needed(id),
+      DB::Firestore { storage } => storage.set_message_revealed_if_needed(id).await,
+      DB::Json { storage } => storage.set_message_revealed_if_needed(id).await,
     }
   }
-  pub fn get_messages_for_email(&self, email: String) -> DBResult<Vec<MessageWithLastSeen>> {
+  pub async fn get_messages_for_email(&self, email: String) -> DBResult<Vec<MessageWithLastSeen>> {
     match self {
-      DB::Firestore { storage } => storage.get_messages_for_email(email),
-      DB::Json { storage } => storage.get_messages_for_email(email),
+      DB::Firestore { storage } => storage.get_messages_for_email(email).await,
+      DB::Json { storage } => storage.get_messages_for_email(email).await,
     }
   }
-  pub fn delete_message_from_email(&self, email: String, message_id: String) -> DBResult<()> {
+  pub async fn delete_message_from_email(&self, email: String, message_id: String) -> DBResult<()> {
     match self {
-      DB::Firestore { storage } => storage.delete_message_from_email(email, message_id),
-      DB::Json { storage } => storage.delete_message_from_email(email, message_id),
+      DB::Firestore { storage } => storage.delete_message_from_email(email, message_id).await,
+      DB::Json { storage } => storage.delete_message_from_email(email, message_id).await,
     }
   }
-  pub fn get_all_messages(&self) -> DBResult<BTreeMap<String, SecretMessage>> {
+  pub async fn get_all_messages(&self) -> DBResult<BTreeMap<String, SecretMessage>> {
     match self {
-      DB::Firestore { storage } => storage.get_all_messages(),
-      DB::Json { storage } => storage.get_all_messages(),
+      DB::Firestore { storage } => storage.get_all_messages().await,
+      DB::Json { storage } => storage.get_all_messages().await,
     }
   }
-  pub fn unsubscribe_user(&self, email: String) -> DBResult<()> {
+  pub async fn unsubscribe_user(&self, email: String) -> DBResult<()> {
     match self {
-      DB::Firestore { storage } => storage.unsubscribe_user(email),
-      DB::Json { storage } => storage.unsubscribe_user(email),
+      DB::Firestore { storage } => storage.unsubscribe_user(email).await,
+      DB::Json { storage } => storage.unsubscribe_user(email).await,
     }
   }
-  pub fn subscribe_user(&self, email: String, sub: Subscription) -> DBResult<()> {
+  pub async fn subscribe_user(&self, email: String, sub: Subscription) -> DBResult<()> {
     match self {
-      DB::Firestore { storage } => storage.subscribe_user(email, sub),
-      DB::Json { storage } => storage.subscribe_user(email, sub),
+      DB::Firestore { storage } => storage.subscribe_user(email, sub).await,
+      DB::Json { storage } => storage.subscribe_user(email, sub).await,
     }
   }
 }

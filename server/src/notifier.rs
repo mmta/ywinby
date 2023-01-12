@@ -1,22 +1,22 @@
 use anyhow::Result;
-use crossbeam::{ channel::{ Receiver, tick }, select };
 use serde::Serialize;
 use web_push::*;
 use log::{ info, error };
 use std::{ collections::HashSet, time::Duration };
+use tokio::{ task, time };
 
-use crate::{ data_struct::{ User, SecretMessage, Subscription }, db };
+use crate::{ data_struct::{ User, SecretMessage, Subscription }, db::{ self, StorageType } };
 
 const PUSH_SUBJECT_CLAIM: &str = "https://github.com/mmta/ywinby";
-pub const SCHEDULER_CHECK_EXIT_EVERY_SECONDS: u64 = 10;
 
 pub async fn start_scheduler(
-  dbo: db::DB,
+  storage_type: StorageType,
+  storage_id: &str,
   every_seconds: u64,
-  quit: Receiver<bool>,
   webpush_privkey_base64: String
 ) {
   let res = WebPusher::new(webpush_privkey_base64);
+  let sdb = db::DBBuilder::new(storage_type, storage_id).await.unwrap();
   if res.is_err() {
     error!("cannot start scheduler, failed to initialize web push client");
     return;
@@ -24,39 +24,34 @@ pub async fn start_scheduler(
   let web_pusher = res.unwrap();
 
   info!("scheduler will execute task every {} seconds", every_seconds);
-  let ticker = tick(Duration::from_secs(every_seconds));
-  loop {
-    select! {
-      recv(ticker) -> _ => {
-        execute_tasks(&dbo, &web_pusher).await
-          .map_err(|e| error!("error executing task: {}", e))
-          .unwrap_or_default();
-      },
-      // spawn() doesnt work with select!'ing quit channel, so here's a workaround
-      default(Duration::from_secs(SCHEDULER_CHECK_EXIT_EVERY_SECONDS)) => {
-        if quit.try_recv().is_ok() {
-          break
-        }
-      }
+
+  let forever = task::spawn(async move {
+    let mut interval = time::interval(Duration::from_secs(every_seconds));
+    loop {
+      interval.tick().await;
+      execute_tasks(&sdb, &web_pusher).await
+        .map_err(|e| error!("error executing task: {}", e))
+        .unwrap_or_default();
     }
-  }
+  });
+  forever.await.unwrap();
 }
 
 pub async fn execute_tasks(dbo: &db::DB, pusher: &WebPusher) -> Result<()> {
   info!("start executing scheduled task");
 
-  let messages = dbo.get_all_messages()?;
+  let messages = dbo.get_all_messages().await?;
 
   let mut notifications: HashSet<Notification> = HashSet::new();
 
   for (k, v) in messages {
-    let res = dbo.get_user(v.owner.as_str());
+    let res = dbo.get_user(v.owner.as_str()).await;
     if res.is_err() {
       error!("cannot get owner for {}, skip processing", k);
       continue;
     }
     let o = res.as_ref().unwrap();
-    let res = dbo.get_user(v.recipient.as_str());
+    let res = dbo.get_user(v.recipient.as_str()).await;
     if res.is_err() {
       error!("cannot get recipient for {}, skip processing", k);
       continue;
@@ -82,10 +77,10 @@ pub async fn execute_tasks(dbo: &db::DB, pusher: &WebPusher) -> Result<()> {
       error!("subscription endpoint: {:?}", n.subscription.endpoint);
     } else {
       info!("push message sent for message Id: {}", n.message_id);
-      if let Err(e) = dbo.update_message_notified_on(n.message_id.as_str(), &n.email) {
+      if let Err(e) = dbo.update_message_notified_on(n.message_id.as_str(), &n.email).await {
         error!("cannot set message last notification timestamp {}: {}", n.message_id, e);
       }
-      if let Err(e) = dbo.set_message_revealed_if_needed(&n.message_id) {
+      if let Err(e) = dbo.set_message_revealed_if_needed(&n.message_id).await {
         error!("cannot set message revealed flag {}: {}", n.message_id, e);
       }
     }

@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 use std::fs::create_dir_all;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+use tokio::sync::Mutex;
 
 use crate::data_struct::SecretMessage;
 use crate::data_struct::User;
@@ -35,16 +35,16 @@ impl Storage {
       mu: Arc::new(Mutex::new(())),
     })
   }
-  pub fn put_user(&self, user: User) -> DBResult<()> {
+  pub async fn put_user(&self, user: User) -> DBResult<()> {
     let id = self.user_store.save_with_id(&user, &user.id)?;
     info!("user upserted, Id: {}", id);
     Ok(())
   }
-  pub fn get_user(&self, id: &str) -> DBResult<User> {
+  pub async fn get_user(&self, id: &str) -> DBResult<User> {
     let u = self.user_store.get::<User>(id)?;
     Ok(u)
   }
-  pub fn put_message(&self, mut message: SecretMessage) -> DBResult<()> {
+  pub async fn put_message(&self, mut message: SecretMessage) -> DBResult<()> {
     if message.owner.is_empty() {
       return Err(anyhow!("owner must not be empty"));
     }
@@ -66,7 +66,7 @@ impl Storage {
     info!("message upserted, Id: {}", id);
     Ok(())
   }
-  pub fn update_message_notified_on(&self, id: &str, email: &str) -> DBResult<()> {
+  pub async fn update_message_notified_on(&self, id: &str, email: &str) -> DBResult<()> {
     let mut message: SecretMessage = self.message_store.get(id)?;
     if let Ok(now) = SystemTime::now().duration_since(UNIX_EPOCH) {
       if email == message.recipient {
@@ -79,13 +79,13 @@ impl Storage {
     Ok(())
   }
 
-  pub fn set_message_revealed_if_needed(&self, id: &str) -> DBResult<bool> {
-    let mut m = self.get_message(id)?;
+  pub async fn set_message_revealed_if_needed(&self, id: &str) -> DBResult<bool> {
+    let mut m = self.get_message(id).await?;
     if m.revealed {
       return Ok(true);
     }
     // not revealed yet in db
-    let owner = self.get_user(&m.owner)?;
+    let owner = self.get_user(&m.owner).await?;
     if let Ok(r) = m.should_reveal(owner.last_seen) {
       if r {
         m.revealed = true;
@@ -95,21 +95,21 @@ impl Storage {
     }
     Ok(false)
   }
-  fn get_message(&self, id: &str) -> DBResult<SecretMessage> {
+  async fn get_message(&self, id: &str) -> DBResult<SecretMessage> {
     let message = self.message_store.get(id)?;
     Ok(message)
   }
-  pub fn get_messages_for_email(&self, email: String) -> DBResult<Vec<MessageWithLastSeen>> {
+  pub async fn get_messages_for_email(&self, email: String) -> DBResult<Vec<MessageWithLastSeen>> {
     let messages: BTreeMap<String, SecretMessage> = self
-      .get_all_messages()?
+      .get_all_messages().await?
       .into_iter()
       .filter(|x| (x.1.owner == email || x.1.recipient == email))
       .collect();
 
     let mut out: Vec<MessageWithLastSeen> = Vec::new();
     for (k, v) in messages {
-      let owner = self.get_user(&v.owner)?;
-      let recipient = self.get_user(&v.recipient)?;
+      let owner = self.get_user(&v.owner).await?;
+      let recipient = self.get_user(&v.recipient).await?;
       let mut m = MessageWithLastSeen {
         id: k.to_owned(),
         created_ts: v.created_ts,
@@ -124,7 +124,7 @@ impl Storage {
       };
 
       // first set revealed on db if needed, this flag should only change from false -> true once
-      m.revealed = self.set_message_revealed_if_needed(&k)?;
+      m.revealed = self.set_message_revealed_if_needed(&k).await?;
 
       if email == v.owner {
         m.system_share = v.system_share.clone();
@@ -138,9 +138,9 @@ impl Storage {
     Ok(out)
   }
 
-  pub fn delete_message_from_email(&self, email: String, message_id: String) -> DBResult<()> {
+  pub async fn delete_message_from_email(&self, email: String, message_id: String) -> DBResult<()> {
     let messages: BTreeMap<String, SecretMessage> = self
-      .get_all_messages()?
+      .get_all_messages().await?
       .into_iter()
       .filter(|x| (x.1.owner == email || x.1.recipient == email))
       .collect();
@@ -148,7 +148,7 @@ impl Storage {
     if messages.contains_key(message_id.as_str()) {
       let message: SecretMessage = self.message_store.get(&message_id)?;
       let should_delete = if email == message.recipient {
-        self.set_message_revealed_if_needed(message_id.as_str())?
+        self.set_message_revealed_if_needed(message_id.as_str()).await?
       } else {
         email == message.owner
       };
@@ -159,11 +159,11 @@ impl Storage {
     }
     Err(anyhow!("message not found"))
   }
-  pub fn get_all_messages(&self) -> DBResult<BTreeMap<String, SecretMessage>> {
+  pub async fn get_all_messages(&self) -> DBResult<BTreeMap<String, SecretMessage>> {
     let res = self.message_store.all::<SecretMessage>()?;
     Ok(res)
   }
-  pub fn unsubscribe_user(&self, email: String) -> DBResult<()> {
+  pub async fn unsubscribe_user(&self, email: String) -> DBResult<()> {
     let user: User = self.user_store.get(email.as_str())?;
     let new_user = User {
       id: user.id.clone(),
@@ -171,14 +171,14 @@ impl Storage {
       ..Default::default()
     };
     self.user_store.delete(&user.id)?;
-    self.put_user(new_user)?;
+    self.put_user(new_user).await?;
     Ok(())
   }
-  pub fn subscribe_user(&self, email: String, sub: Subscription) -> DBResult<()> {
+  pub async fn subscribe_user(&self, email: String, sub: Subscription) -> DBResult<()> {
     let user: User = self.user_store.get(email.as_str())?;
     let new_user = User { id: user.id.clone(), last_seen: user.last_seen, subscription: sub };
     self.user_store.delete(&user.id)?;
-    self.put_user(new_user)?;
+    self.put_user(new_user).await?;
     Ok(())
   }
 }
