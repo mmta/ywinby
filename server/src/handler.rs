@@ -16,12 +16,11 @@ use actix_web::{
 };
 use http_error::IntoHttpError;
 
-use crate::{ notifier::{ self, AppPushMessage }, data_struct::{ SecretMessage, User }, db::Unsafe };
+use crate::{ notifier::{ self, AppPushMessage }, data_struct::{ SecretMessage, User }, db };
 use crate::data_struct::{ Subscription };
 
 pub struct AppState {
-  pub db: Box<dyn crate::db::DB>,
-  pub unsafe_db: Unsafe,
+  pub db: db::DB,
   pub web_push: notifier::WebPusher,
   pub block_registration: bool,
   pub scheduled_task_period: u64,
@@ -68,9 +67,10 @@ async fn serverless_scheduled_task(
   if access_token.token != data.serverless_token {
     return Err(ErrorUnauthorized("correct access token required\n"));
   }
-  let _g = data.unsafe_db.mu.try_lock().http_internal_error("task is still executing\n")?;
+  let mu = data.db.get_lock();
+  let _g = mu.try_lock().http_internal_error("task is still executing\n")?;
   notifier
-    ::execute_tasks(&data.unsafe_db, &data.web_push).await
+    ::execute_tasks(&data.db, &data.web_push).await
     .http_internal_error("error executing scheduled task")?;
   Ok("task executed successfully\n")
 }

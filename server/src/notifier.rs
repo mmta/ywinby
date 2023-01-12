@@ -5,13 +5,13 @@ use web_push::*;
 use log::{ info, error };
 use std::{ collections::HashSet, time::Duration };
 
-use crate::{ data_struct::{ User, SecretMessage, Subscription }, db::{ self, Unsafe } };
+use crate::{ data_struct::{ User, SecretMessage, Subscription }, db };
 
 const PUSH_SUBJECT_CLAIM: &str = "https://github.com/mmta/ywinby";
 pub const SCHEDULER_CHECK_EXIT_EVERY_SECONDS: u64 = 10;
 
 pub async fn start_scheduler(
-  dbox: Unsafe,
+  dbo: db::DB,
   every_seconds: u64,
   quit: Receiver<bool>,
   webpush_privkey_base64: String
@@ -28,7 +28,7 @@ pub async fn start_scheduler(
   loop {
     select! {
       recv(ticker) -> _ => {
-        execute_tasks(&dbox, &web_pusher).await
+        execute_tasks(&dbo, &web_pusher).await
           .map_err(|e| error!("error executing task: {}", e))
           .unwrap_or_default();
       },
@@ -42,21 +42,21 @@ pub async fn start_scheduler(
   }
 }
 
-pub async fn execute_tasks(dbo: &db::Unsafe, pusher: &WebPusher) -> Result<()> {
+pub async fn execute_tasks(dbo: &db::DB, pusher: &WebPusher) -> Result<()> {
   info!("start executing scheduled task");
 
-  let messages = dbo.content.get_all_messages()?;
+  let messages = dbo.get_all_messages()?;
 
   let mut notifications: HashSet<Notification> = HashSet::new();
 
   for (k, v) in messages {
-    let res = dbo.content.get_user(v.owner.as_str());
+    let res = dbo.get_user(v.owner.as_str());
     if res.is_err() {
       error!("cannot get owner for {}, skip processing", k);
       continue;
     }
     let o = res.as_ref().unwrap();
-    let res = dbo.content.get_user(v.recipient.as_str());
+    let res = dbo.get_user(v.recipient.as_str());
     if res.is_err() {
       error!("cannot get recipient for {}, skip processing", k);
       continue;
@@ -82,10 +82,10 @@ pub async fn execute_tasks(dbo: &db::Unsafe, pusher: &WebPusher) -> Result<()> {
       error!("subscription endpoint: {:?}", n.subscription.endpoint);
     } else {
       info!("push message sent for message Id: {}", n.message_id);
-      if let Err(e) = dbo.content.update_message_notified_on(n.message_id.as_str(), &n.email) {
+      if let Err(e) = dbo.update_message_notified_on(n.message_id.as_str(), &n.email) {
         error!("cannot set message last notification timestamp {}: {}", n.message_id, e);
       }
-      if let Err(e) = dbo.content.set_message_revealed_if_needed(&n.message_id) {
+      if let Err(e) = dbo.set_message_revealed_if_needed(&n.message_id) {
         error!("cannot set message revealed flag {}: {}", n.message_id, e);
       }
     }

@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -8,8 +10,7 @@ use crossbeam::channel;
 use log::info;
 use uuid::Uuid;
 
-use super::StorageType;
-use super::{ DB, DBResult };
+use super::DBResult;
 use crate::data_struct::MessageWithLastSeen;
 use crate::data_struct::Subscription;
 
@@ -22,7 +23,7 @@ pub struct Storage {
   user_coll: String,
   message_coll: String,
   rt: tokio::runtime::Runtime,
-  project_id: String,
+  pub mu: Arc<Mutex<()>>,
 }
 
 impl Storage {
@@ -33,16 +34,10 @@ impl Storage {
       user_coll: "users".to_string(),
       message_coll: "messages".to_string(),
       rt: tokio::runtime::Runtime::new().unwrap(),
-      project_id: project_id.to_string(),
+      mu: Arc::new(Mutex::new(())),
     })
   }
-}
-
-impl DB for Storage {
-  fn get_storage(&self) -> DBResult<(StorageType, String)> {
-    Ok((StorageType::Firestore, self.project_id.to_string()))
-  }
-  fn put_user(&self, user: User) -> DBResult<()> {
+  pub fn put_user(&self, user: User) -> DBResult<()> {
     let (tx, rx) = channel::bounded(1);
     let db = self.db.clone();
     let uid = user.id.clone();
@@ -78,7 +73,7 @@ impl DB for Storage {
     info!("user upserted, Id: {}", user.id);
     Ok(())
   }
-  fn get_user(&self, id: &str) -> DBResult<User> {
+  pub fn get_user(&self, id: &str) -> DBResult<User> {
     let (tx, rx) = channel::bounded(1);
     let db = self.db.clone();
     let i = id.to_owned();
@@ -90,7 +85,7 @@ impl DB for Storage {
     let m = rx.recv()??;
     m.ok_or_else(|| format_err!("cannot find user"))
   }
-  fn put_message(&self, mut message: SecretMessage) -> DBResult<()> {
+  pub fn put_message(&self, mut message: SecretMessage) -> DBResult<()> {
     if message.owner.is_empty() {
       return Err(anyhow!("owner must not be empty"));
     }
@@ -131,7 +126,7 @@ impl DB for Storage {
     info!("message upserted, Id: {}", m_idb);
     Ok(())
   }
-  fn update_message_notified_on(&self, id: &str, email: &str) -> DBResult<()> {
+  pub fn update_message_notified_on(&self, id: &str, email: &str) -> DBResult<()> {
     let mut message: SecretMessage = self.get_message(id)?;
     if let Ok(now) = SystemTime::now().duration_since(UNIX_EPOCH) {
       if email == message.recipient {
@@ -158,7 +153,7 @@ impl DB for Storage {
     Ok(())
   }
 
-  fn set_message_revealed_if_needed(&self, id: &str) -> DBResult<bool> {
+  pub fn set_message_revealed_if_needed(&self, id: &str) -> DBResult<bool> {
     let mut m = self.get_message(id)?;
     if m.revealed {
       return Ok(true);
@@ -200,7 +195,7 @@ impl DB for Storage {
     let m = rx.recv()??;
     m.ok_or_else(|| format_err!("cannot find message"))
   }
-  fn get_messages_for_email(&self, email: String) -> DBResult<Vec<MessageWithLastSeen>> {
+  pub fn get_messages_for_email(&self, email: String) -> DBResult<Vec<MessageWithLastSeen>> {
     let messages: BTreeMap<String, SecretMessage> = self
       .get_all_messages()?
       .into_iter()
@@ -239,7 +234,7 @@ impl DB for Storage {
     Ok(out)
   }
 
-  fn delete_message_from_email(&self, email: String, message_id: String) -> DBResult<()> {
+  pub fn delete_message_from_email(&self, email: String, message_id: String) -> DBResult<()> {
     let messages: BTreeMap<String, SecretMessage> = self
       .get_all_messages()?
       .into_iter()
@@ -268,7 +263,7 @@ impl DB for Storage {
     Err(anyhow!("message not found"))
   }
 
-  fn get_all_messages(&self) -> DBResult<BTreeMap<String, SecretMessage>> {
+  pub fn get_all_messages(&self) -> DBResult<BTreeMap<String, SecretMessage>> {
     let (tx, rx) = channel::bounded(1);
     let db = self.db.clone();
     let coll = self.message_coll.clone();
@@ -289,7 +284,7 @@ impl DB for Storage {
     }
     Ok(res)
   }
-  fn unsubscribe_user(&self, email: String) -> DBResult<()> {
+  pub fn unsubscribe_user(&self, email: String) -> DBResult<()> {
     let user: User = self.get_user(&email)?;
     let new_user = User {
       id: user.id.clone(),
@@ -299,7 +294,7 @@ impl DB for Storage {
     self.put_user(new_user)?;
     Ok(())
   }
-  fn subscribe_user(&self, email: String, sub: Subscription) -> DBResult<()> {
+  pub fn subscribe_user(&self, email: String, sub: Subscription) -> DBResult<()> {
     let user: User = self.get_user(&email)?;
     let new_user = User { id: user.id.clone(), last_seen: user.last_seen, subscription: sub };
     self.put_user(new_user)?;
