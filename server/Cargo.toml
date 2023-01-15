@@ -42,12 +42,6 @@ features = ["help", "std", "derive", "env" ]
 optional = false
 default-features = false
 
-[dependencies.crossbeam]
-version = "0.8.2"
-features = ["std"]
-optional = false
-default-features = false
-
 [dependencies.jsonwebtoken]
 version = "8.2.0"
 features = []

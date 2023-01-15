@@ -5,13 +5,11 @@ mod db;
 mod data_struct;
 
 use std::fs::create_dir_all;
-use std::io::{ Error, ErrorKind };
 
 use actix_cors::Cors;
 use actix_files as fs;
 
-use crossbeam::channel::bounded;
-use db::{ StorageType, Unsafe };
+use db::{ StorageType };
 use handler::AppState;
 use log::{ info, error };
 use serde::Serialize;
@@ -167,29 +165,22 @@ async fn main() -> std::io::Result<()> {
     "db".to_string()
   };
 
-  let (tx, rx) = bounded(1);
   on_shutdown!(|| {
     _guard.cancel_reset();
-    _ = tx.send(true);
-    drop(tx);
     info!("server is shutting down")
   });
 
   if !args.serverless_token.is_empty() {
     info!("starting in serverless mode, not activating scheduler");
   } else {
-    if notifier::SCHEDULER_CHECK_EXIT_EVERY_SECONDS >= args.scheduled_task_period {
-      let msg = format!(
-        "scheduled task period must be > than {} seconds",
-        notifier::SCHEDULER_CHECK_EXIT_EVERY_SECONDS
-      );
-      error!("{}", msg);
-      return Err(Error::new(ErrorKind::InvalidInput, msg));
-    }
-    let dbox = db::Unsafe::new(args.storage, storage_id.to_string()).await.unwrap();
     println!("abt to spawn!");
     tokio::spawn(async move {
-      notifier::start_scheduler(dbox, args.scheduled_task_period, rx, args.push_privkey).await;
+      notifier::start_scheduler(
+        args.storage,
+        &storage_id,
+        args.scheduled_task_period,
+        args.push_privkey
+      ).await;
     });
   }
 
@@ -232,11 +223,9 @@ async fn data_factory_creator() -> AppState {
   };
   let web_pusher = notifier::WebPusher::new(args.push_privkey.as_str().to_string()).unwrap();
   let sdb = db::DBBuilder::new(args.storage, &s_id).await.unwrap();
-  let dbox = Unsafe::new(args.storage, s_id).await.unwrap();
 
   handler::AppState {
     db: sdb,
-    unsafe_db: dbox,
     web_push: web_pusher.to_owned(),
     block_registration: args.block_registration,
     scheduled_task_period: args.scheduled_task_period,

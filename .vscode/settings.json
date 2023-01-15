@@ -3,5 +3,6 @@
     "source.fixAll.eslint": true
   },
   "eslint.format.enable": true,
-  "rust-analyzer.checkOnSave.command": "clippy"
+  "rust-analyzer.checkOnSave": true,
+  "rust-analyzer.check.command": "clippy"
 }

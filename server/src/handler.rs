@@ -16,12 +16,11 @@ use actix_web::{
 };
 use http_error::IntoHttpError;
 
-use crate::{ notifier::{ self, AppPushMessage }, data_struct::{ SecretMessage, User }, db::Unsafe };
+use crate::{ notifier::{ self, AppPushMessage }, data_struct::{ SecretMessage, User }, db };
 use crate::data_struct::{ Subscription };
 
 pub struct AppState {
-  pub db: Box<dyn crate::db::DB>,
-  pub unsafe_db: Unsafe,
+  pub db: db::DB,
   pub web_push: notifier::WebPusher,
   pub block_registration: bool,
   pub scheduled_task_period: u64,
@@ -38,7 +37,9 @@ async fn authenticate_user(access_token: &str, data: &web::Data<AppState>) -> Re
     .http_unauthorized_error("cannot get valid email from token")?;
 
   debug!("authenticating {}", email);
-  let res = data.db.get_user(email.as_str()).http_unauthorized_error("email is not registered");
+  let res = data.db
+    .get_user(email.as_str()).await
+    .http_unauthorized_error("email is not registered");
   info!("done get {}", email);
 
   // exit if user doesn't exist and new registration isn't allowed
@@ -50,7 +51,7 @@ async fn authenticate_user(access_token: &str, data: &web::Data<AppState>) -> Re
   let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
   let sub = if res.is_ok() { res.unwrap().subscription } else { Subscription::default() };
   data.db
-    .put_user(User { id: email.clone(), last_seen: now, subscription: sub })
+    .put_user(User { id: email.clone(), last_seen: now, subscription: sub }).await
     .http_internal_error(format!("cannot update last_seen for user {}", email).as_str())?;
 
   info!("{} authenticated and updated", email);
@@ -68,9 +69,10 @@ async fn serverless_scheduled_task(
   if access_token.token != data.serverless_token {
     return Err(ErrorUnauthorized("correct access token required\n"));
   }
-  let _g = data.unsafe_db.mu.try_lock().http_internal_error("task is still executing\n")?;
+  let mu = data.db.get_lock();
+  let _g = mu.try_lock().http_internal_error("task is still executing\n")?;
   notifier
-    ::execute_tasks(&data.unsafe_db, &data.web_push).await
+    ::execute_tasks(&data.db, &data.web_push).await
     .http_internal_error("error executing scheduled task")?;
   Ok("task executed successfully\n")
 }
@@ -88,7 +90,7 @@ async fn message_list(
   let email = authenticate_user(access_token.token.as_str(), &data).await?;
   info!("getting message for {}", email);
   let messages = data.db
-    .get_messages_for_email(email)
+    .get_messages_for_email(email).await
     .map_err(|e| string_error::into_err(e.to_string()))?;
   Ok(web::Json(messages))
 }
@@ -121,7 +123,9 @@ async fn test_notification(
   } else {
     email.as_str()
   };
-  let user = data.db.get_user(recipient_email).map_err(|e| string_error::into_err(e.to_string()))?;
+  let user = data.db
+    .get_user(recipient_email).await
+    .map_err(|e| string_error::into_err(e.to_string()))?;
 
   let mut push_message = AppPushMessage { tag: "test".to_string(), ..Default::default() };
   if user.id == email {
@@ -143,7 +147,9 @@ async fn unsubscribe_user(
   access_token: web::Json<AccessToken>
 ) -> Result<impl Responder> {
   let email = authenticate_user(access_token.token.as_str(), &data).await?;
-  data.db.unsubscribe_user(email.to_owned()).map_err(|e| string_error::into_err(e.to_string()))?;
+  data.db
+    .unsubscribe_user(email.to_owned()).await
+    .map_err(|e| string_error::into_err(e.to_string()))?;
   info!("{} unsubscribed", email);
   Ok(Response::ok())
 }
@@ -161,7 +167,7 @@ async fn subscribe_user(
 ) -> Result<impl Responder> {
   let email = authenticate_user(req.token.as_str(), &data).await?;
   data.db
-    .subscribe_user(email.clone(), req.subscription.clone())
+    .subscribe_user(email.clone(), req.subscription.clone()).await
     .map_err(|e| string_error::into_err(e.to_string()))?;
   info!("{} subscribed", email);
   Ok(Response::ok())
@@ -180,7 +186,7 @@ async fn message_delete(
 ) -> Result<impl Responder> {
   let email = authenticate_user(del_msg.token.as_str(), &data).await?;
   data.db
-    .delete_message_from_email(email.to_owned(), del_msg.message_id.clone())
+    .delete_message_from_email(email.to_owned(), del_msg.message_id.clone()).await
     .map_err(|e| string_error::into_err(e.to_string()))?;
   info!("{} deleted message {}", email, del_msg.message_id);
   Ok(Response::ok())
@@ -214,7 +220,7 @@ async fn message_create(
     );
   }
   let recipient = data.db
-    .get_user(m.recipient.as_str())
+    .get_user(m.recipient.as_str()).await
     .http_not_found_error("recipient email is not registered")?;
   if recipient.id == email {
     return Err(ErrorForbidden("owner and recipient must be different"));
@@ -223,7 +229,7 @@ async fn message_create(
     return Err(ErrorForbidden("recipient hasn't subscribe to push notification"));
   }
   m.owner = email.to_owned();
-  data.db.put_message(m).map_err(|e| string_error::into_err(e.to_string()))?;
+  data.db.put_message(m).await.map_err(|e| string_error::into_err(e.to_string()))?;
   info!("{} created message for {})", email, recipient.id);
   Ok(Response::ok())
 }
