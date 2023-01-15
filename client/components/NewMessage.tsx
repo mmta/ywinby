@@ -42,7 +42,7 @@ const NewMessage: FC<ContainerProps> = () => {
   }
 
   const updateVerifyLimit = (ev: any) => {
-    if (ev.target.value > 9 || ev.target.value < 1) return
+    if (ev.target.value > 9 || ev.target.value < 0) return
     setVerifyLimit(ev.target.value)
     const maxTime = verifyTime * Number(ev.target.value)
     setThresholdTime(`${maxTime}`)
@@ -146,7 +146,7 @@ const NewMessage: FC<ContainerProps> = () => {
             </div>
             <div className="level-right">
               <div className="level-item">
-                <input className='level-item input' id='verify-time' type="number" placeholder="00" min="1" max="99" pattern="\d{2}" value={verifyTime} onChange={(ev) => updateVerifyTime(ev)}></input>
+                <input className='level-item input' id='verify-time' type="number" placeholder="00" min="1" max="99" value={verifyTime} onChange={(ev) => updateVerifyTime(ev)}></input>
               </div>
               <div className="level-item">
                 <div className='select'>
@@ -164,7 +164,7 @@ const NewMessage: FC<ContainerProps> = () => {
               <label>Max consecutive failure to respond (1-9)</label>
             </div>
             <div className="level-right">
-              <input className='input' id='verify-limit' type="number" placeholder="0" min="1" max="9" value={verifyLimit} onChange={(ev) => updateVerifyLimit(ev)}></input>
+              <input className='level-item input' id='verify-limit' type="number" placeholder="0" min="1" max="9" value={verifyLimit} onChange={(ev) => updateVerifyLimit(ev)}></input>
             </div>
           </div>
           <div className="mt-4">
