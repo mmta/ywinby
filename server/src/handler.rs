@@ -61,7 +61,7 @@ async fn authorize_user(access_token: &str, data: &web::Data<AppState>) -> Resul
   Ok(email)
 }
 
-#[post("/serverless-task")]
+#[get("/serverless-task")]
 async fn serverless_scheduled_task(
   data: web::Data<AppState>,
   auth: BearerAuth
