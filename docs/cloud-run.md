@@ -93,9 +93,7 @@ Here ywinby runs in serverless mode, which disables the internal scheduler for p
    As an example, to test initiating a scheduled check from the cloud console above (using the previously set env vars):
 
    ```shell
-   curl -sSf -H 'content-type:application/json' \
-     ${BASE_API_PATH}/serverless-task \
-     -d '{ "token" : "'${SERVERLESS_TOKEN}'"}' 
+   curl -sSf -H "Authorization : Bearer ${SERVERLESS_TOKEN}" ${BASE_API_PATH}/serverless-task 
 
    task executed successfully
    ```
