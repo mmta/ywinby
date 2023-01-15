@@ -10,7 +10,7 @@ export default function Owner () {
 
   const ownerPong = useCallback(
     async (): Promise<boolean> => {
-      const result = await getApiResult('/user-pong', 'post', {})
+      const result = await getApiResult('/user-pong', 'get', {})
       return result.success
     }, [])
 

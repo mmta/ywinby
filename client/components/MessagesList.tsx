@@ -30,7 +30,7 @@ const MessageList: FC<ContainerProps> = () => {
       let messages: IMessage[] = []
       const successMessage = promptAfter ? 'message list refreshed successfully' : undefined
       setLoading(true)
-      const { success, data } = await getApiResult('/message-list', 'post', {}, successMessage, 'failed to get messages', () => setLoggedIn(false))
+      const { success, data } = await getApiResult('/message-list', 'get', {}, successMessage, 'failed to get messages', () => setLoggedIn(false))
       if (success && data) {
         messages = data as unknown as IMessage[]
       }

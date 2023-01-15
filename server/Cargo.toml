@@ -23,6 +23,7 @@ string-error = "0.1.0"
 vapid = "0.6.0"
 web-push = "0.9.3"
 isahc = "1.7.2"
+actix-web-httpauth = "0.8.0"
 
 [dependencies.actix-web]
 version = "4"

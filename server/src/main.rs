@@ -9,6 +9,7 @@ use std::fs::create_dir_all;
 use actix_cors::Cors;
 use actix_files as fs;
 
+use actix_web_httpauth::extractors::bearer;
 use db::{ StorageType };
 use handler::AppState;
 use log::{ info, error };
@@ -199,6 +200,7 @@ async fn main() -> std::io::Result<()> {
         let state = data_factory_creator().await;
         Ok::<_, ()>(state)
       })
+      .app_data(bearer::Config::default().realm("Registered-users only").scope("Ywinby"))
       .service(handler::message_list)
       .service(handler::message_create)
       .service(handler::message_delete)

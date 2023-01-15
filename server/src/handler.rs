@@ -13,11 +13,14 @@ use actix_web::{
   post,
   delete,
   error::{ ErrorForbidden, ErrorUnauthorized, ErrorNotImplemented },
+  get,
 };
 use http_error::IntoHttpError;
 
+use actix_web_httpauth::extractors::bearer::BearerAuth;
+
 use crate::{ notifier::{ self, AppPushMessage }, data_struct::{ SecretMessage, User }, db };
-use crate::data_struct::{ Subscription };
+use crate::data_struct::Subscription;
 
 pub struct AppState {
   pub db: db::DB,
@@ -28,15 +31,15 @@ pub struct AppState {
   pub serverless_token: String,
 }
 
-async fn authenticate_user(access_token: &str, data: &web::Data<AppState>) -> Result<String> {
-  // NOTE: authenticate user is expected to return httpResponse error on failure
+async fn authorize_user(access_token: &str, data: &web::Data<AppState>) -> Result<String> {
+  // NOTE: auth user is expected to return httpResponse error on failure
   // http_error currently sets the status code correctly but ignores the message part
 
   let email = gsi
     ::get_email_from_token(access_token, &data.oauth_client_id).await
     .http_unauthorized_error("cannot get valid email from token")?;
 
-  debug!("authenticating {}", email);
+  debug!("authorizing {}", email);
   let res = data.db
     .get_user(email.as_str()).await
     .http_unauthorized_error("email is not registered");
@@ -54,19 +57,19 @@ async fn authenticate_user(access_token: &str, data: &web::Data<AppState>) -> Re
     .put_user(User { id: email.clone(), last_seen: now, subscription: sub }).await
     .http_internal_error(format!("cannot update last_seen for user {}", email).as_str())?;
 
-  info!("{} authenticated and updated", email);
+  info!("{} authorized and updated", email);
   Ok(email)
 }
 
-#[post("/serverless-task")]
+#[get("/serverless-task")]
 async fn serverless_scheduled_task(
   data: web::Data<AppState>,
-  access_token: web::Json<AccessToken>
+  auth: BearerAuth
 ) -> Result<impl Responder> {
   if data.serverless_token.is_empty() {
     return Err(ErrorNotImplemented("this feature is not active\n"));
   }
-  if access_token.token != data.serverless_token {
+  if auth.token() != data.serverless_token {
     return Err(ErrorUnauthorized("correct access token required\n"));
   }
   let mu = data.db.get_lock();
@@ -77,17 +80,9 @@ async fn serverless_scheduled_task(
   Ok("task executed successfully\n")
 }
 
-#[derive(Deserialize)]
-pub struct AccessToken {
-  token: String,
-}
-
-#[post("/message-list")]
-async fn message_list(
-  data: web::Data<AppState>,
-  access_token: web::Json<AccessToken>
-) -> Result<impl Responder> {
-  let email = authenticate_user(access_token.token.as_str(), &data).await?;
+#[get("/message-list")]
+async fn message_list(data: web::Data<AppState>, auth: BearerAuth) -> Result<impl Responder> {
+  let email = authorize_user(auth.token(), &data).await?;
   info!("getting message for {}", email);
   let messages = data.db
     .get_messages_for_email(email).await
@@ -95,19 +90,15 @@ async fn message_list(
   Ok(web::Json(messages))
 }
 
-#[post("/user-pong")]
-async fn user_pong(
-  data: web::Data<AppState>,
-  access_token: web::Json<AccessToken>
-) -> Result<impl Responder> {
-  let email = authenticate_user(access_token.token.as_str(), &data).await?;
+#[get("/user-pong")]
+async fn user_pong(data: web::Data<AppState>, auth: BearerAuth) -> Result<impl Responder> {
+  let email = authorize_user(auth.token(), &data).await?;
   info!("received pong from {}", email);
   Ok(Response::ok())
 }
 
 #[derive(Deserialize, Default)]
 struct TestNotificationRequest {
-  token: String,
   #[serde(default)]
   recipient: String,
 }
@@ -115,9 +106,10 @@ struct TestNotificationRequest {
 #[post("/test-notification")]
 async fn test_notification(
   data: web::Data<AppState>,
-  notif_request: web::Json<TestNotificationRequest>
+  notif_request: web::Json<TestNotificationRequest>,
+  auth: BearerAuth
 ) -> Result<impl Responder> {
-  let email = authenticate_user(notif_request.token.as_str(), &data).await?;
+  let email = authorize_user(auth.token(), &data).await?;
   let recipient_email = if !notif_request.recipient.is_empty() {
     notif_request.recipient.as_str()
   } else {
@@ -142,11 +134,8 @@ async fn test_notification(
   Ok(Response::ok())
 }
 #[post("/unsubscribe-user")]
-async fn unsubscribe_user(
-  data: web::Data<AppState>,
-  access_token: web::Json<AccessToken>
-) -> Result<impl Responder> {
-  let email = authenticate_user(access_token.token.as_str(), &data).await?;
+async fn unsubscribe_user(data: web::Data<AppState>, auth: BearerAuth) -> Result<impl Responder> {
+  let email = authorize_user(auth.token(), &data).await?;
   data.db
     .unsubscribe_user(email.to_owned()).await
     .map_err(|e| string_error::into_err(e.to_string()))?;
@@ -156,16 +145,16 @@ async fn unsubscribe_user(
 
 #[derive(Deserialize)]
 pub struct SubscriptionRequest {
-  token: String,
   subscription: Subscription,
 }
 
 #[post("/subscribe-user")]
 async fn subscribe_user(
   data: web::Data<AppState>,
+  auth: BearerAuth,
   req: web::Json<SubscriptionRequest>
 ) -> Result<impl Responder> {
-  let email = authenticate_user(req.token.as_str(), &data).await?;
+  let email = authorize_user(auth.token(), &data).await?;
   data.db
     .subscribe_user(email.clone(), req.subscription.clone()).await
     .map_err(|e| string_error::into_err(e.to_string()))?;
@@ -175,16 +164,16 @@ async fn subscribe_user(
 
 #[derive(Deserialize)]
 struct DeleteMessage {
-  token: String,
   message_id: String,
 }
 
 #[delete("/message")]
 async fn message_delete(
   data: web::Data<AppState>,
-  del_msg: web::Json<DeleteMessage>
+  del_msg: web::Json<DeleteMessage>,
+  auth: BearerAuth
 ) -> Result<impl Responder> {
-  let email = authenticate_user(del_msg.token.as_str(), &data).await?;
+  let email = authorize_user(auth.token(), &data).await?;
   data.db
     .delete_message_from_email(email.to_owned(), del_msg.message_id.clone()).await
     .map_err(|e| string_error::into_err(e.to_string()))?;
@@ -194,15 +183,15 @@ async fn message_delete(
 
 #[derive(Deserialize)]
 struct NewMessage {
-  token: String,
   message: SecretMessage,
 }
 #[post("/message")]
 async fn message_create(
   data: web::Data<AppState>,
+  auth: BearerAuth,
   new_message: web::Json<NewMessage>
 ) -> Result<impl Responder> {
-  let email = authenticate_user(new_message.token.as_str(), &data).await?;
+  let email = authorize_user(auth.token(), &data).await?;
   let mut m: SecretMessage = new_message.into_inner().message;
   info!(
     "scheduled_task_minute: {} every_minute: {}",
