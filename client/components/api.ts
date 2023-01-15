@@ -36,10 +36,14 @@ export const getApiResult = async (endpoint: string, method: string, payload: Ob
     return { success: false }
   }
 
-  const bodyObj = { token, ...payload }
-  const bodyJson = JSON.stringify(bodyObj)
-  const headers = JSON.parse('{ "content-type" : "application/json" }')
-  const fetchOpts = { headers, method, body: bodyJson }
+  const headers = {
+    'content-type': 'application/json',
+    Authorization: `Bearer ${token}`
+  }
+  const fetchOpts: { [k: string]: any } = { headers, method }
+  if (method !== 'get') {
+    fetchOpts.body = JSON.stringify(payload)
+  }
 
   let resp: Response
   try {
