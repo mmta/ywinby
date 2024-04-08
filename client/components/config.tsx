@@ -1,4 +1,3 @@
-
 export const config = {
   getAPIUrl: () => {
     return window.localStorage.getItem('api')
