@@ -1,8 +1,15 @@
 {
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
+    "source.fixAll.eslint": "explicit"
   },
   "eslint.format.enable": true,
   "rust-analyzer.checkOnSave": true,
-  "rust-analyzer.check.command": "clippy"
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.rustfmt.extraArgs": [
+    "+nightly"
+  ],
+  "editor.rulers": [
+    80,
+    120
+  ],
 }
