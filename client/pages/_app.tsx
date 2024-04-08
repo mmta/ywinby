@@ -31,11 +31,20 @@ export default function App ({ Component, pageProps }: AppProps) {
 
   useEffect(() => {
     const f = async () => {
-      const { success, data } = await getRuntimeConfig()
+      // first we get the runtime config from where the UI is hosted, this is just
+      // to get the API server URL
+      const { success, data } = await getRuntimeConfig(window.location.href)
+      const apiUrl = (data as any).api_url || ''
       if (success) {
-        config.setAPIUrl((data as any).api_url)
-        config.setPushPubkey((data as any).push_pubkey_base64)
-        setConfigLoaded(true)
+        config.setAPIUrl(apiUrl)
+        // then we get the runtime config from the API server
+        const { success, data } = await getRuntimeConfig(apiUrl)
+        if (success) {
+          config.setPushPubkey((data as any).push_pubkey_base64)
+          setConfigLoaded(true)
+        } else {
+          alert('cannot connect to API server ' + apiUrl + '. Please make sure the server is running and reachable')
+        }
       } else {
         alert(data)
       }

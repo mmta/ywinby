@@ -7,8 +7,8 @@ export interface APIResult {
   data?: Object | undefined
 }
 
-export const getRuntimeConfig = async (): Promise<APIResult> => {
-  const url = window.location.href + 'runtime-config.json'
+export const getRuntimeConfig = async (baseUrl: String): Promise<APIResult> => {
+  const url = baseUrl.replace(/\/$/, '') + '/runtime-config.json'
   let resp: Response
   try {
     resp = await fetch(`${url}`)
