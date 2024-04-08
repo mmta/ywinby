@@ -11,11 +11,11 @@ codegen-units = 1
 panic = "abort"
 
 [dependencies]
-actix-cors = "0.6.4"
+actix-cors = "0.7"
 actix-files = "0.6.2"
 actix-http = "3.2.2"
-firestore = "0.22.0"
-jfs = "0.8.0"
+firestore = "0.40"
+jfs = "0.9.0"
 log = "0.4.17"
 serde_derive = "1.0"
 simple_on_shutdown = "1.0.0"
@@ -44,7 +44,7 @@ optional = false
 default-features = false
 
 [dependencies.jsonwebtoken]
-version = "8.2.0"
+version = "9"
 features = []
 optional = false
 default-features = false
