@@ -42,10 +42,10 @@ export default function App ({ Component, pageProps }: AppProps) {
         if (success) {
           config.setPushPubkey((data as any).push_pubkey_base64)
           setConfigLoaded(true)
-        } else {
-          alert('cannot connect to API server ' + apiUrl + '. Please make sure the server is running and reachable')
         }
       } else {
+        // popup if we can't even get the runtime config from the UI server
+        // it should've been bundled with the UI
         alert(data)
       }
     }
@@ -53,9 +53,7 @@ export default function App ({ Component, pageProps }: AppProps) {
   }, [])
 
   return (
-    !configLoaded
-      ? <></>
-      : <>
+    <>
     <Head><title>Ywinby</title></Head>
     <GoogleOAuthProvider clientId="806452214643-l366imhlc0c64coebiik6t3otfjatis3.apps.googleusercontent.com"
         onScriptLoadError={async () => {
@@ -82,7 +80,9 @@ export default function App ({ Component, pageProps }: AppProps) {
         showLoginPrompt,
         setShowLoginPrompt,
         loading,
-        setLoading
+        setLoading,
+        configLoaded,
+        setConfigLoaded
       }}>
       <ToastContainer />
       <Component {...pageProps} />
