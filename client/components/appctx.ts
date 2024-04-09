@@ -18,6 +18,8 @@ export type AppContextType = {
   setShowLoginPrompt: (value: boolean) => void;
   loading: boolean;
   setLoading: (value: boolean) => void;
+  configLoaded: boolean;
+  setConfigLoaded: (value: boolean) => void;
 };
 
 export const AppContext = createContext<AppContextType | null>(null)
