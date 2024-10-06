@@ -1,7 +1,6 @@
 {
   "extends": [
     "next/core-web-vitals",
-    "plugin:jest/recommended",
     "standard"
   ],
   "ignorePatterns": [
