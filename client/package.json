@@ -18,7 +18,7 @@
     "@react-oauth/google": "^0.5.1",
     "bulma": "^0.9.4",
     "dayjs": "^1.11.7",
-    "next": "^13",
+    "next": "^14",
     "next-pwa": "^5.6.0",
     "react": "^17.0.2",
     "react-confirm-alert": "^2.8.0",
